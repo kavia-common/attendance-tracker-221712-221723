@@ -4,24 +4,40 @@ set -euo pipefail
 # This script initializes the PostgreSQL database by applying schema and seed scripts.
 # It is idempotent: schema uses IF NOT EXISTS and seed checks before inserting.
 
-# Required env vars are expected to be present in the environment:
-# - POSTGRES_URL OR (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_PORT)
-# The CI/orchestrator provides these. We avoid hardcoding credentials here.
-
+# Prefer connection from db_connection.txt if present (per project rule).
+# Fallback to POSTGRES_URL or POSTGRES_* environment variables.
 psql_cmd=""
 
-if [[ -n "${POSTGRES_URL:-}" ]]; then
+if [[ -f "$(dirname "$0")/db_connection.txt" ]]; then
+  # Read entire command from file (e.g., "psql postgresql://user:pass@host:port/db")
+  psql_cmd="$(cat "$(dirname "$0")/db_connection.txt")"
+elif [[ -n "${POSTGRES_URL:-}" ]]; then
   psql_cmd="psql \"$POSTGRES_URL\""
 else
   # Default host to localhost; these variables must be provided by the environment.
   : "${POSTGRES_USER:?POSTGRES_USER is required}"
   : "${POSTGRES_DB:?POSTGRES_DB is required}"
   : "${POSTGRES_PORT:?POSTGRES_PORT is required}"
-  PGPASSWORD="${POSTGRES_PASSWORD:-}" export PGPASSWORD
+  export PGPASSWORD="${POSTGRES_PASSWORD:-}"
   psql_cmd="psql -h localhost -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
 fi
 
 echo "Running database initialization with command: ${psql_cmd%% *} (details hidden)"
+
+# Avoid blocking forever on connect; set a short connect timeout (seconds)
+export PGCONNECT_TIMEOUT="${PGCONNECT_TIMEOUT:-5}"
+
+# Wait for database to be ready (max ~30s)
+retries=30
+until ${psql_cmd} -c "\q" >/dev/null 2>&1; do
+  retries=$((retries-1))
+  if [[ $retries -le 0 ]]; then
+    echo "ERROR: Database is not ready after waiting. Skipping initialization."
+    exit 1
+  fi
+  echo "Waiting for database to become ready..."
+  sleep 1
+done
 
 # Apply schema: create necessary tables if not exist
 ${psql_cmd} -v ON_ERROR_STOP=1 -c "
