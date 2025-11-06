@@ -154,3 +154,30 @@ echo "To use with Node.js viewer, run: source db_visualizer/postgres.env"
 echo "To connect to the database, use one of the following commands:"
 echo "psql -h localhost -U ${DB_USER} -d ${DB_NAME} -p ${DB_PORT}"
 echo "$(cat db_connection.txt)"
+
+# Apply schema and seed data
+echo ""
+echo "Applying database schema (startup.sql)..."
+if [ -f "startup.sql" ]; then
+  # Run as app user against target DB
+  PGPASSWORD="${DB_PASSWORD}" ${PG_BIN}/psql \
+    -h localhost -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} \
+    -v ON_ERROR_STOP=1 -f startup.sql || {
+      echo "Error applying startup.sql"; exit 1;
+    }
+  echo "✓ Schema applied"
+else
+  echo "startup.sql not found - skipping"
+fi
+
+echo "Seeding database (seed.sql)..."
+if [ -f "seed.sql" ]; then
+  PGPASSWORD="${DB_PASSWORD}" ${PG_BIN}/psql \
+    -h localhost -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} \
+    -v ON_ERROR_STOP=1 -f seed.sql || {
+      echo "Error applying seed.sql"; exit 1;
+    }
+  echo "✓ Seed data applied"
+else
+  echo "seed.sql not found - skipping"
+fi
