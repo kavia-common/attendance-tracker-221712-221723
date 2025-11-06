@@ -1,0 +1,25 @@
+{
+  "users": [
+    { "uid": "teacher_1", "email": "alice.teacher@example.com", "name": "Alice Teacher", "role": "teacher", "classIds": ["class_math_101"] },
+    { "uid": "student_1", "email": "bob.student@example.com", "name": "Bob Student", "role": "student", "classIds": ["class_math_101"] },
+    { "uid": "student_2", "email": "cara.student@example.com", "name": "Cara Student", "role": "student", "classIds": ["class_math_101"] }
+  ],
+  "classes": [
+    { "id": "class_math_101", "name": "Math 101", "code": "MTH101", "ownerId": "teacher_1" }
+  ],
+  "sessions": [
+    {
+      "id": "session_2023_10_01",
+      "classId": "class_math_101",
+      "date": "2023-10-01",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "ownerId": "teacher_1",
+      "open": true
+    }
+  ],
+  "attendance": [
+    { "id": "att_session_2023_10_01_student_1", "sessionId": "session_2023_10_01", "studentId": "student_1", "status": "present", "markedAt": "2023-10-01T09:05:00Z" },
+    { "id": "att_session_2023_10_01_student_2", "sessionId": "session_2023_10_01", "studentId": "student_2", "status": "absent", "markedAt": null }
+  ]
+}

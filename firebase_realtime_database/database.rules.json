@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "false",
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.role === 'teacher')",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "classes": {
+      "$classId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.role === 'teacher'"
+      }
+    },
+    "sessions": {
+      "$sessionId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.role === 'teacher'"
+      }
+    },
+    "attendance": {
+      "$attId": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((auth.token.role === 'student' && newData.child('studentId').val() === auth.uid && root.child('sessions').child(newData.child('sessionId').val()).child('open').val() === true) || auth.token.role === 'teacher')"
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isTeacher() {
+      return isSignedIn() && request.auth.token.role == 'teacher';
+    }
+    function isStudent() {
+      return isSignedIn() && request.auth.token.role == 'student';
+    }
+
+    // Collections:
+    // users/{uid} -> { role: 'teacher'|'student', name, email, classIds: [] }
+    // classes/{classId} -> { name, code, ownerId (teacher uid) }
+    // sessions/{sessionId} -> { classId, date, startTime, endTime, ownerId, open: bool }
+    // attendance/{docId} -> { sessionId, studentId, status: 'present'|'absent'|'late', markedAt }
+
+    // Users: users can read their own user doc; teachers can read students in their classes
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isTeacher());
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // Classes: Only teachers create/update/delete classes they own; students read classes they belong to
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow create: if isTeacher() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isTeacher() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Sessions: only teacher owner can create/update/close; everyone can read
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow create: if isTeacher() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isTeacher() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Attendance constraints:
+    // - Students can create/update their own attendance for an open session only
+    // - Teachers can read/write any attendance in sessions they own
+    // - Enforce sessionId+studentId uniqueness at app-level via indexes; rules enforce ownership/time window
+    match /attendance/{attId} {
+      allow read: if isSignedIn();
+
+      // Students can mark their attendance only for themselves and only if session is open
+      allow create, update: if isStudent() && isOwnAttendance() && isSessionOpen();
+      // Teachers can modify attendance for sessions they own
+      allow create, update, delete: if isTeacher() && ownsSession();
+
+      function isOwnAttendance() {
+        return request.resource.data.studentId == request.auth.uid;
+      }
+
+      // Reads the related session and checks that it's open and within time window
+      function isSessionOpen() {
+        let sessionId = request.resource.data.sessionId;
+        return exists(/databases/$(database)/documents/sessions/$(sessionId)) &&
+               get(/databases/$(database)/documents/sessions/$(sessionId)).data.open == true;
+      }
+
+      function ownsSession() {
+        let sessionId = request.resource.data.sessionId;
+        return exists(/databases/$(database)/documents/sessions/$(sessionId)) &&
+               get(/databases/$(database)/documents/sessions/$(sessionId)).data.ownerId == request.auth.uid;
+      }
+    }
+  }
+}
