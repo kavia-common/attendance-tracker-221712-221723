@@ -142,6 +142,20 @@ export POSTGRES_DB="${DB_NAME}"
 export POSTGRES_PORT="${DB_PORT}"
 EOF
 
+# Execute schema and seed if startup.sql exists
+if [ -f "startup.sql" ]; then
+    echo "Executing startup.sql (schema and seed)..."
+    # Use the created app user and database; do not hardcode credentials
+    PGPASSWORD="${DB_PASSWORD}" ${PG_BIN}/psql -h localhost -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f startup.sql
+    if [ $? -eq 0 ]; then
+        echo "✓ Schema and seed executed successfully."
+    else
+        echo "⚠ Failed to execute startup.sql. Check output above."
+    fi
+else
+    echo "No startup.sql found; skipping schema/seed."
+fi
+
 echo "PostgreSQL setup complete!"
 echo "Database: ${DB_NAME}"
 echo "User: ${DB_USER}"
